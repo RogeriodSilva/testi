@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cenário Interativo Compartilhado</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            font-family: sans-serif;
+            color: white;
+        }
+        canvas {
+            border: 2px solid #444;
+            background-color: #222;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <h2>Cenário Interativo (Multiplayer Local)</h2>
+        <p>Abra este arquivo em <b>duas abas lado a lado</b> e mexa o mouse.</p>
+    </div>
+
+    <canvas id="tela" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('tela');
+        const ctx = canvas.getContext('2d');
+
+        // Canal de comunicação entre as abas do navegador
+        const canal = new BroadcastChannel('cenario_interativo');
+
+        // ID único para identificar quem é você nesta aba
+        const meuId = Math.random().toString(36).substr(2, 9);
+
+        // Estado do jogo (posições dos jogadores)
+        const jogadores = {};
+
+        // Define a minha posição inicial
+        jogadores[meuId] = { x: 400, y: 300, cor: '#00ffcc', nome: 'Você' };
+
+        // Captura o movimento do mouse na tela
+        canvas.addEventListener('mousemove', (evento) => {
+            const rect = canvas.getBoundingClientRect();
+            
+            // Atualiza minha posição local
+            jogadores[meuId].x = evento.clientX - rect.left;
+            jogadores[meuId].y = evento.clientY - rect.top;
+
+            // Envia minha nova posição para a outra aba
+            canal.postMessage({
+                id: meuId,
+                x: jogadores[meuId].x,
+                y: jogadores[meuId].y
+            });
+        });
+
+        // Escuta as atualizações vindas da outra aba
+        canal.onmessage = (evento) => {
+            const dados = evento.data;
+            
+            // Se o jogador remoto ainda não existe no nosso estado, nós o criamos
+            if (!jogadores[dados.id]) {
+                jogadores[dados.id] = { cor: '#ff007f', nome: 'Outro Jogador' };
+            }
+
+            // Atualiza a posição do outro jogador
+            jogadores[dados.id].x = dados.x;
+            jogadores[dados.id].y = dados.y;
+        };
+
+        // Loop principal de renderização (desenha a tela a 60 FPS)
+        function desenhar() {
+            // Limpa a tela a cada frame
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Desenha uma grade de fundo no cenário
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            for(let i = 0; i < canvas.width; i += 40) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+
+            // Desenha todos os jogadores ativos
+            for (let id in jogadores) {
+                const j = jogadores[id];
+
+                // Desenha o círculo do jogador
+                ctx.beginPath();
+                ctx.arc(j.x, j.y, 20, 0, Math.PI * 2);
+                ctx.fillStyle = j.color || j.cor;
+                ctx.fill();
+                ctx.closePath();
+
+                // Desenha o nome acima do jogador
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(id === meuId ? 'Você' : 'Outro', j.x, j.y - 30);
+            }
+
+            // Chama o próximo frame
+            requestAnimationFrame(desenhar);
+        }
+
+        // Inicia o loop gráfico
+        desenhar();
+    </script>
+</body>
+</html>
